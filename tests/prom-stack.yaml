@@ -1,0 +1,153 @@
+grafana:
+  enabled: false
+
+kubernetesServiceMonitors:
+  enabled: false
+
+kubeApiServer:
+  enabled: false
+
+kubelet:
+  enabled: false
+
+kubeControllerManager:
+  enabled: false
+
+coreDns:
+  enabled: false
+
+kubeEtcd:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+kubeProxy:
+  enabled: false
+
+kubeStateMetrics:
+  enabled: false
+
+nodeExporter:
+  enabled: false
+
+#prometheus:
+#  alerting:
+#    alertmanagers:
+#      - name: custom-alertmanager
+#        static_configs:
+#          - targets:
+#              - custom-alertmanager-url:port
+
+prometheus:
+#  alerting:
+#    alertmanagers:
+#      - name: custom-alertmanager
+#        static_configs:
+#          - targets:
+#              - prometeus-alerting-middleware-app:3001  # Замените custom-alertmanager-url:port на ваш URL и порт
+#        scheme: http  # Если ваш сервер использует HTTPS, измените на "https"
+#        timeout: 10s  # Установите таймаут на отправку алерта (по умолчанию 10s)
+#        bearer_token: "your_token"  # Добавьте токен, если требуется аутентификация на сервере
+##        proxy_url: "http://proxy.example.com:3128"  # Укажите прокси, если требуется
+#        tls_config:
+#          insecure_skip_verify: true  # Используйте только в тестовых целях. В промышленном окружении лучше использовать настраиваемые сертификаты.
+
+  additionalPrometheusRules:
+    - name: custom-alert-rule
+      groups:
+        - name: CustomAlerts
+          rules:
+            - alert: CustomAlert
+              expr: |
+                absent(up{job="kubelet",metrics_path="/metrics"} == 1)
+              for: 0
+              labels:
+                severity: critical
+              annotations:
+                summary: "Custom alert triggered!"
+                description: "The custom metric {{ $labels.instance }} is above the threshold for 5 minutes."
+
+alertmanager:
+
+  extraSecret:
+    data:
+      haproxy.cfg: |
+        global
+            daemon
+            maxconn 256
+            log stdout local0 debug
+        
+        defaults
+            log global
+            mode tcp
+            timeout connect 5000ms
+            timeout client 50000ms
+            timeout server 50000ms
+
+        frontend http
+            bind :9100
+            default_backend stats
+
+        backend stats
+            mode http
+            stats enable
+            stats uri /
+            stats refresh 1s
+            stats show-legends
+            stats admin if TRUE
+
+        
+        frontend alertmanager-proxy
+            bind *:19093
+            use_backend middleware if { path /api/v2/alerts } && { method POST } || { path_beg /api/v2/alerts } && { method POST }
+            default_backend alertmanager
+        
+        backend middleware
+            mode http
+            balance roundrobin
+            server s1 prometeus-alerting-middleware-app:3001 check
+
+        backend alertmanager
+            mode http
+            balance roundrobin
+            server s1 localhost:9093 check
+
+
+  ## Deploy alertmanager
+  ##
+  enabled: true
+  alertmanagerSpec:
+    logLevel: debug
+
+
+    containers:
+      - name: proxy
+        image: haproxytech/haproxy-alpine:2.9.6
+        ports:
+          - name: proxy-http-web
+            containerPort: 19093
+            protocol: TCP
+          - name: ha-proxy-stats
+            containerPort: 9100
+            protocol: TCP
+
+        env:
+          - name: DEBUG
+            value: '*'
+        volumeMounts:
+          - name: haproxy-conf
+            readOnly: true
+            mountPath: /usr/local/etc/haproxy/
+    volumes:
+      - name: haproxy-conf
+        secret:
+          secretName: alertmanager-prom-stack-kube-prometheus-extra
+
+  service:
+    targetPort: 19093
+    additionalPorts:
+      - name: http-web-origin
+        protocol: TCP
+        port: 29093
+        targetPort: 9093

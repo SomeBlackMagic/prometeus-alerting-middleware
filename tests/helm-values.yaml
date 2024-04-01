@@ -1,0 +1,9 @@
+image:
+  registry: localhost
+  repository: prometeus-alerting-middleware
+  tag: local
+
+app:
+  envVars:
+#    DEBUG: "*"
+    APP_ALERTMANAGER_URL: "http://prom-stack-kube-prometheus-alertmanager:29093"

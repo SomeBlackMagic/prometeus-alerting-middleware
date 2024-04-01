@@ -1,0 +1,8 @@
+apiVersion: prometheus-alerting-middleware.io/v1alpha1
+kind: SeverityRemaper
+metadata:
+  name: config-remaper
+spec:
+  map:
+    - alertName: Prometeus
+      destinationSeverity: info

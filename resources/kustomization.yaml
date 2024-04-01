@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ts-operator
+
+resources:
+- bases/prometheus-alerting-middleware.io_severityremapers.yaml
+
+- prometheus-alerting-middleware-clusterrolebinding.yaml
+- prometheus-alerting-middleware-namespace.yaml
+- prometheus-alerting-middleware-role.yaml
+- prometheus-alerting-middleware-sa.yaml
+
+labels:
+- includeSelectors: true
+  pairs:
+    app: ts-operator

@@ -1,0 +1,9 @@
+Makefile
+.gitignore
+node_modules
+.docker
+!.docker/docker-entrypoint.sh
+.idea
+.git
+.dockerignore
+coverage
